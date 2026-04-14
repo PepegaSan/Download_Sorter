@@ -1,0 +1,21 @@
+# Local settings (may contain personal paths)
+config.json
+config.json.tmp
+
+# Runtime logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

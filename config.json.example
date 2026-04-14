@@ -1,0 +1,8 @@
+{
+  "watch_folder": "",
+  "settle_delay_seconds": 1.5,
+  "stable_poll_interval_seconds": 0.4,
+  "max_wait_seconds": 120.0,
+  "ui_language": "en",
+  "rules": []
+}
