@@ -27,6 +27,7 @@ from locales import (
     pairs_if,
     t,
 )
+from paths import application_base_dir
 from watch_service import WatchController
 
 _LOG = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class DownloadSorterApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
 
-        self._base_dir = Path(__file__).resolve().parent
+        self._base_dir = application_base_dir()
         _setup_file_logging(self._base_dir)
         self._cfg = load_config(self._base_dir)
         self._lang = normalize_lang(self._cfg.ui_language)

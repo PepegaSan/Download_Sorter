@@ -5,6 +5,11 @@ config.json.tmp
 # Runtime logs
 *.log
 
+# PyInstaller
+build/
+dist/
+*.spec
+
 # Python
 __pycache__/
 *.py[cod]
