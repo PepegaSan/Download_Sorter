@@ -10,15 +10,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Building standalone EXE...
-python -m PyInstaller --noconfirm --clean ^
-  --onefile ^
-  --windowed ^
-  --name "Download_Sorter" ^
-  --collect-all customtkinter ^
-  --hidden-import watchdog.observers.polling ^
-  --hidden-import watchdog.observers ^
-  main.py
+echo Building standalone EXE (Download_Sorter.spec)...
+python -m PyInstaller --noconfirm --clean Download_Sorter.spec
 
 if errorlevel 1 (
     echo Build failed.

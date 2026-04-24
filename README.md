@@ -38,15 +38,15 @@ On first run, copy `config.json.example` to `config.json` and set `watch_folder`
 ## Windows standalone `.exe` (PyInstaller)
 
 1. Install runtime deps: `pip install -r requirements.txt`
-2. Run **`build_exe.bat`** (installs PyInstaller from `requirements-build.txt`, then builds).
-3. Output: **`dist/Download_Sorter.exe`** — you can copy only that file; first run creates **`config.json`** and **`download_sorter.log`** in the **same folder as the `.exe`**.
+2. Run `**build_exe.bat**` (installs PyInstaller from `requirements-build.txt`, then builds via `**Download_Sorter.spec**`).
+3. Output: `**dist/Download_Sorter.exe**` — you can copy only that file; first run creates `**config.json**` and `**download_sorter.log**` in the **same folder as the `.exe`**.
 
 Rebuild after code changes by running `build_exe.bat` again.
 
 ## Configuration
 
-- **`config.json`** — next to `main.py` when running from source; **next to the `.exe`** when using the frozen build.
-- **`download_sorter.log`** — optional log file for troubleshooting (created when the app runs).
+- `**config.json**` — next to `main.py` when running from source; **next to the `.exe`** when using the frozen build.
+- `**download_sorter.log**` — optional log file for troubleshooting (created when the app runs).
 
 Do not commit your real `config.json` if it contains personal paths; use `config.json.example` as a template.
 

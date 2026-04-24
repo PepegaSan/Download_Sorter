@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -98,43 +99,155 @@ class Rule:
 
 
 @dataclass
+class WatchProfile:
+    """Überwachungsprofil: eigener Ordner, eigene Regeln, optional parallel aktiv (run_enabled)."""
+
+    profile_id: str = ""
+    name: str = "Profil 1"
+    watch_folder: str = ""
+    rules: list[Rule] = field(default_factory=list)
+    run_enabled: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.profile_id:
+            self.profile_id = str(uuid.uuid4())
+        if not self.rules:
+            self.rules = [Rule()]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "profile_id": self.profile_id,
+            "name": self.name,
+            "watch_folder": self.watch_folder,
+            "rules": [r.to_dict() for r in self.rules],
+            "run_enabled": self.run_enabled,
+        }
+
+    @staticmethod
+    def from_dict(d: dict[str, Any]) -> "WatchProfile":
+        rules_raw = d.get("rules") or []
+        rules = [Rule.from_dict(x) for x in rules_raw if isinstance(x, dict)] if rules_raw else []
+        if not rules:
+            rules = [Rule()]
+        pid = str(d.get("profile_id") or d.get("id") or "").strip()
+        if not pid:
+            pid = str(uuid.uuid4())
+        return WatchProfile(
+            profile_id=pid,
+            name=str(d.get("name", "Profil")),
+            watch_folder=str(d.get("watch_folder", "")),
+            rules=rules,
+            run_enabled=bool(d.get("run_enabled", False)),
+        )
+
+
+@dataclass
 class AppConfig:
+    """Globale App-Einstellungen plus eine oder mehrere WatchProfile."""
+
     watch_folder: str = ""
     settle_delay_seconds: float = 1.5
     stable_poll_interval_seconds: float = 0.4
     max_wait_seconds: float = 120.0
     rules: list[Rule] = field(default_factory=list)
     ui_language: str = "de"
+    ui_appearance: str = "dark"
+    profiles: list[WatchProfile] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "watch_folder": self.watch_folder,
+        profs = self.profiles if self.profiles else _legacy_single_profile(self)
+        out: dict[str, Any] = {
             "settle_delay_seconds": self.settle_delay_seconds,
             "stable_poll_interval_seconds": self.stable_poll_interval_seconds,
             "max_wait_seconds": self.max_wait_seconds,
-            "rules": [r.to_dict() for r in self.rules],
             "ui_language": self.ui_language,
+            "ui_appearance": self.ui_appearance,
+            "profiles": [p.to_dict() for p in profs],
         }
+        if profs:
+            out["watch_folder"] = profs[0].watch_folder
+            out["rules"] = [r.to_dict() for r in profs[0].rules]
+        else:
+            out["watch_folder"] = self.watch_folder
+            out["rules"] = [r.to_dict() for r in self.rules] if self.rules else [Rule().to_dict()]
+        return out
 
     @staticmethod
-    def from_dict(d: dict[str, Any]) -> "AppConfig":
-        rules_raw = d.get("rules") or []
-        rules = [Rule.from_dict(x) for x in rules_raw if isinstance(x, dict)]
+    def from_dict(d: dict[str, Any]) -> AppConfig:
         lang = str(d.get("ui_language", "de")).lower()
         if lang not in ("de", "en"):
             lang = "de"
-        return AppConfig(
+        app_mode = str(d.get("ui_appearance", "dark")).lower()
+        if app_mode not in ("dark", "light"):
+            app_mode = "dark"
+        base = AppConfig(
             watch_folder=str(d.get("watch_folder", "")),
             settle_delay_seconds=float(d.get("settle_delay_seconds", 1.5)),
             stable_poll_interval_seconds=float(d.get("stable_poll_interval_seconds", 0.4)),
             max_wait_seconds=float(d.get("max_wait_seconds", 120.0)),
-            rules=rules,
+            rules=[],
             ui_language=lang,
+            ui_appearance=app_mode,
+            profiles=[],
         )
+        profiles_raw = d.get("profiles")
+        if isinstance(profiles_raw, list) and profiles_raw:
+            base.profiles = [WatchProfile.from_dict(x) for x in profiles_raw if isinstance(x, dict)]
+            if not base.profiles:
+                base.profiles = [_migrate_legacy_to_profile(d)]
+        else:
+            base.profiles = [_migrate_legacy_to_profile(d)]
+        first = base.profiles[0]
+        base.watch_folder = first.watch_folder
+        base.rules = [Rule.from_dict(r.to_dict()) for r in first.rules]
+        return base
 
     def copy(self) -> "AppConfig":
         """Thread-sichere Kopie (über JSON-Dict-Roundtrip, keine Tk-Widgets)."""
         return AppConfig.from_dict(self.to_dict())
+
+
+def _migrate_legacy_to_profile(d: dict[str, Any]) -> WatchProfile:
+    """config ohne profiles[] → ein Profil aus watch_folder + rules."""
+    rules_raw = d.get("rules") or []
+    rules = [Rule.from_dict(x) for x in rules_raw if isinstance(x, dict)] if rules_raw else []
+    if not rules:
+        rules = [Rule()]
+    return WatchProfile(
+        profile_id=str(uuid.uuid4()),
+        name="Profil 1",
+        watch_folder=str(d.get("watch_folder", "")),
+        rules=rules,
+        run_enabled=False,
+    )
+
+
+def _legacy_single_profile(cfg: AppConfig) -> list[WatchProfile]:
+    if cfg.profiles:
+        return cfg.profiles
+    return [
+        WatchProfile(
+            profile_id=str(uuid.uuid4()),
+            name="Profil 1",
+            watch_folder=cfg.watch_folder,
+            rules=list(cfg.rules) if cfg.rules else [Rule()],
+            run_enabled=False,
+        )
+    ]
+
+
+def runtime_config_for_profile(app: AppConfig, profile: WatchProfile) -> AppConfig:
+    """Worker-Snapshot: Wartezeiten aus app, Regeln aus profile (Kopie)."""
+    rules_copy = [Rule.from_dict(r.to_dict()) for r in profile.rules]
+    return AppConfig(
+        watch_folder=profile.watch_folder,
+        settle_delay_seconds=app.settle_delay_seconds,
+        stable_poll_interval_seconds=app.stable_poll_interval_seconds,
+        max_wait_seconds=app.max_wait_seconds,
+        rules=rules_copy,
+        ui_language=app.ui_language,
+        profiles=[],
+    )
 
 
 def config_path(base_dir: Path | None = None) -> Path:
@@ -142,18 +255,43 @@ def config_path(base_dir: Path | None = None) -> Path:
     return root / CONFIG_FILENAME
 
 
+def ensure_profiles(cfg: AppConfig) -> None:
+    """Stellt sicher, dass mindestens ein Profil existiert (neue/leere Konfiguration)."""
+    if cfg.profiles:
+        return
+    cfg.profiles = [
+        WatchProfile(
+            name="Profil 1",
+            watch_folder=cfg.watch_folder,
+            rules=list(cfg.rules) if cfg.rules else [Rule()],
+            run_enabled=False,
+        )
+    ]
+    first = cfg.profiles[0]
+    cfg.watch_folder = first.watch_folder
+    cfg.rules = [Rule.from_dict(r.to_dict()) for r in first.rules]
+
+
 def load_config(base_dir: Path | None = None) -> AppConfig:
     path = config_path(base_dir)
     if not path.is_file():
-        return AppConfig()
+        cfg = AppConfig()
+        ensure_profiles(cfg)
+        return cfg
     try:
         with path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
         if not isinstance(data, dict):
-            return AppConfig()
-        return AppConfig.from_dict(data)
+            cfg = AppConfig()
+            ensure_profiles(cfg)
+            return cfg
+        cfg = AppConfig.from_dict(data)
+        ensure_profiles(cfg)
+        return cfg
     except (OSError, json.JSONDecodeError):
-        return AppConfig()
+        cfg = AppConfig()
+        ensure_profiles(cfg)
+        return cfg
 
 
 def save_config(cfg: AppConfig, base_dir: Path | None = None) -> None:
