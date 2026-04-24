@@ -43,6 +43,10 @@ On first run, copy `config.json.example` to `config.json` and set `watch_folder`
 
 Rebuild after code changes by running `build_exe.bat` again.
 
+## Windows standalone `.exe` (Nuitka)
+
+Run `**build_nuitka.bat**` (installs Nuitka, then builds a onefile GUI binary into `**nuitka-build/Download_Sorter.exe**`). The script uses **`--onefile-no-dll`**, which often avoids Windows Defender locking `main.dll` during post-processing (`Failed to add resources`). If the build still fails, add an exclusion for the project or output folder in Defender (see [Nuitka manual — Windows errors with resources](https://nuitka.net/doc/user-manual.html)).
+
 ## Configuration
 
 - `**config.json**` — next to `main.py` when running from source; **next to the `.exe`** when using the frozen build.
